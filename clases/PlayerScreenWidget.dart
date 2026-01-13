@@ -175,9 +175,11 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     
     final image = viewModel.preloadSlidesService.getDecodedImage(file.path);
     final fileType = FileTypeX.fromString(track?.track.type);
-    final controller = context.read<PlayerViewModel>().scheduleTrackPlayerService.videoController;
     
-    LogService.logInfo("PlayerScreenWidget", "build", "Rendering FileType: $fileType, Path: ${file.path}");
+    final rawController = context.read<PlayerViewModel>().scheduleTrackPlayerService.videoController;
+    final activeController = (fileType == FileType.video) ? rawController : null;
+    
+    LogService.logInfo("PlayerScreenWidget", "build", "Rendering FileType: $fileType, ActiveController: ${activeController != null ? 'YES' : 'NULL'}");
 
     return Stack(
       fit: StackFit.expand,
@@ -189,7 +191,7 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
         _buildMediaByType(
           fileType: fileType,
           file: file,
-          controller: controller,
+          controller: activeController,
           slideImage: image,
         ),
 
@@ -231,55 +233,52 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
   }) {
     final service = context.read<PlayerViewModel>().scheduleTrackPlayerService;
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (fileType == FileType.video)
-          if (controller == null)
-             const SizedBox.shrink(key: ValueKey('video_empty'))
-          else
-            ListenableBuilder(
-              listenable: service,
-              builder: (context, child) {
-                final isChanging = service.isChangingTrack;
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    MediaPlayerWrapper(
-                      key: const ValueKey('video_player'),
-                      controller: controller,
-                    ),
-                    if (isChanging)
-                      Container(
-                        key: const ValueKey('black_curtain'),
-                        color: Colors.black,
-                      ),
-                  ],
-                );
-              },
-            ),
+    if (fileType == FileType.video && controller != null) {
+      return ListenableBuilder(
+        listenable: service,
+        builder: (context, child) {
+          final isChanging = service.isChangingTrack;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              MediaPlayerWrapper(
+                key: const ValueKey('video_player'),
+                controller: controller,
+              ),
+              if (isChanging)
+                Container(
+                  key: const ValueKey('black_curtain'),
+                  color: Colors.black,
+                ),
+            ],
+          );
+        },
+      );
+    }
 
-        if (fileType == FileType.slide)
-          Container(
-            key: ValueKey('slide_container_${file?.path}'),
-            color: Colors.black,
-            width: double.infinity,
-            height: double.infinity,
-            child: (slideImage != null && file != null)
-                ? RawImage(
-                    image: slideImage,
-                    fit: BoxFit.contain,
-                  )
-                : Image.asset(
-                    'assets/no_image.jpg',
-                    fit: BoxFit.contain,
-                  ),
-          ),
+    if (fileType == FileType.slide) {
+      return Container(
+        key: ValueKey('slide_container_${file?.path}'),
+        color: Colors.black,
+        width: double.infinity,
+        height: double.infinity,
+        child: (slideImage != null && file != null)
+            ? RawImage(
+                image: slideImage,
+                fit: BoxFit.contain,
+              )
+            : Image.asset(
+                'assets/no_image.jpg',
+                fit: BoxFit.contain,
+              ),
+      );
+    }
           
-        if (fileType == FileType.audio)
-           _AudioPlaceholder(controller: controller),
-      ],
-    );
+    if (fileType == FileType.audio) {
+      return _AudioPlaceholder(controller: controller);
+    }
+
+    return const SizedBox.shrink();
   }
 
   Widget _buildInfoText(String text) => Text(
