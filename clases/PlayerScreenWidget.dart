@@ -1,3 +1,44 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+
+
+class PlayerScreen extends StatelessWidget {
+  const PlayerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => PlayerViewModel(
+        getCurrentTrackUseCase: GetIt.I<GetCurrentTrackUseCase>(),
+        getSystemSoundsUseCase: GetIt.I<GetSystemSoundsUseCase>(),
+        getVolumeUseCase: GetIt.I<GetVolumeUseCase>(),
+        preloadSlidesService: GetIt.I<PreloadSlidesService>(),
+      ),
+      child: Builder(
+        builder: (context) {
+          final viewModel = context.read<PlayerViewModel>();
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: viewModel.getTrackBloc),
+            ],
+            child: PlayerScreenWidget(
+              onOutOfSchedule: () {
+                Navigator.pushReplacementNamed(context, AppRoute.closedScreen.name);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class PlayerScreenWidget extends StatefulWidget {
   final VoidCallback? onOutOfSchedule;
 
@@ -182,7 +223,6 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
           listenable: service,
           builder: (context, child) {
             final isChanging = service.isChangingTrack;
-            // LogService.logInfo("PlayerScreenWidget", "VIDEO_BUILDER", "Rebuilding Video Stack. isChangingTrack: $isChanging");
             
             return Stack(
               fit: StackFit.expand,
@@ -202,20 +242,23 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
         );
 
       case FileType.slide:
-        if (slideImage != null && file != null) {
-          return RawImage(
-            key: const ValueKey('video_surface'),
-            image: slideImage,
-            fit: BoxFit.contain,
-            width: double.infinity,
-            height: double.infinity,
-          );
-        }
-
-        return Image.asset(
-          'assets/no_image.jpg',
-          key: const ValueKey('slide_asset'),
-          fit: BoxFit.contain,
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: Colors.black,
+          child: (slideImage != null && file != null)
+              ? RawImage(
+                  key: const ValueKey('video_surface'),
+                  image: slideImage,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                )
+              : Image.asset(
+                  'assets/no_image.jpg',
+                  key: const ValueKey('slide_asset'),
+                  fit: BoxFit.contain,
+                ),
         );
 
       case FileType.audio:
