@@ -1,13 +1,3 @@
-import 'dart:async';
-import 'dart:io';
-import 'dart:ui' as ui;
-
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:get_it/get_it.dart';
-import 'package:media_kit_video/media_kit_video.dart';
-
-
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key});
 
@@ -90,7 +80,6 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
               if (state is RecentTrackOutOfSchedule) {
                 widget.onOutOfSchedule?.call();
               }
-
               if (state is RecentTrackSuccess && state.currentTrack != null) {
                 context.read<PlayerViewModel>().onTrackChanged(state.currentTrack!);
               }
@@ -113,55 +102,22 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     if (state is RecentTrackLoading) {
       return _buildLoadingState();
     }
-
     if (state is RecentTrackError) {
       return _buildErrorState();
     }
-
     if (state is RecentTrackSuccess) {
       return _buildTrackState(context, state);
     }
-
     return const SizedBox.shrink();
   }
 
   Widget _buildLoadingState() => const Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-        ),
-        SizedBox(height: 16),
-        Text(
-          "Wait a moment...",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            decoration: TextDecoration.none,
-          ),
-        ),
-      ],
-    ),
-  );
+        child: CircularProgressIndicator(color: Colors.white),
+      );
 
   Widget _buildErrorState() => const Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.error_outline, color: Colors.red, size: 64),
-        SizedBox(height: 16),
-        Text(
-          'Error loading track',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            decoration: TextDecoration.none,
-          ),
-        ),
-      ],
-    ),
-  );
+        child: Icon(Icons.error_outline, color: Colors.red, size: 64),
+      );
 
   Widget _buildTrackState(BuildContext context, RecentTrackSuccess state) {
     final track = state.currentTrack;
@@ -169,7 +125,6 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     final viewModel = context.read<PlayerViewModel>();
     
     if (file == null) {
-      LogService.logWarning("PlayerScreenWidget", "buildTrackState", "File is NULL");
       return const Center(child: Text('No file', style: TextStyle(color: Colors.white)));
     }
     
@@ -179,8 +134,6 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     final rawController = context.read<PlayerViewModel>().scheduleTrackPlayerService.videoController;
     final activeController = (fileType == FileType.video) ? rawController : null;
     
-    LogService.logInfo("PlayerScreenWidget", "build", "Rendering FileType: $fileType, ActiveController: ${activeController != null ? 'YES' : 'NULL'}");
-
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -199,10 +152,7 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
           alignment: Alignment.bottomCenter,
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              vertical: 16,
-              horizontal: 20,
-            ),
+            padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [Colors.transparent, Colors.black54],
@@ -215,8 +165,7 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildInfoText('Filename: ${file.path.split('/').last}'),
-                _buildInfoText('Artist: ${track?.track.artist ?? '-'}'),
-                _buildInfoText('Track: ${track?.track.source ?? '-'}'),
+                _buildInfoText('Title: ${track?.track.title ?? '-'}'),
               ],
             ),
           ),
@@ -238,6 +187,7 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
         listenable: service,
         builder: (context, child) {
           final isChanging = service.isChangingTrack;
+          
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -248,7 +198,7 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
               if (isChanging)
                 Container(
                   key: const ValueKey('black_curtain'),
-                  color: Colors.black,
+                  color: Colors.black, 
                 ),
             ],
           );
@@ -262,15 +212,12 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
         color: Colors.black,
         width: double.infinity,
         height: double.infinity,
-        child: (slideImage != null && file != null)
+        child: (slideImage != null)
             ? RawImage(
                 image: slideImage,
                 fit: BoxFit.contain,
               )
-            : Image.asset(
-                'assets/no_image.jpg',
-                fit: BoxFit.contain,
-              ),
+            : Image.asset('assets/no_image.jpg', fit: BoxFit.contain),
       );
     }
           
@@ -282,46 +229,37 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
   }
 
   Widget _buildInfoText(String text) => Text(
-    text,
-    textAlign: TextAlign.center,
-    style: const TextStyle(
-      color: Colors.white,
-      fontSize: 12,
-      fontWeight: FontWeight.bold,
-      decoration: TextDecoration.none,
-    ),
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-  );
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          decoration: TextDecoration.none,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
 }
 
 class _AudioPlaceholder extends StatelessWidget {
   final VideoController? controller;
-
   const _AudioPlaceholder({this.controller});
 
   @override
   Widget build(BuildContext context) {
-    final videoController = controller;
-
     return Stack(
       alignment: Alignment.center,
       children: [
-        Container(
-          color: Colors.black,
-          alignment: Alignment.center,
-          child: const Icon(
-            Icons.music_note,
-            size: 120,
-            color: Colors.white,
-          ),
+        const Center(
+          child: Icon(Icons.music_note, size: 120, color: Colors.white),
         ),
-        if (videoController != null)
+        if (controller != null)
           Positioned(
             bottom: 20,
             left: 0,
             right: 0,
-            child: Video(controller: videoController),
+            child: Video(controller: controller),
           ),
       ],
     );

@@ -65,8 +65,6 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
           Duration.zero,
         );
         _volumeManager.updateVolume(commandType);
-      } else {
-        LogService.logWarning(LogTags.playerViewModel, "handleCommand", "Track file is null");
       }
     } catch (e, stackTrace) {
       LogService.logError(LogTags.playerViewModel, "handleCommand", "Error executing command", e, stackTrace);
@@ -76,29 +74,22 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
   Future<void> onTrackChanged(PlayingMediaModel track) async {
     final file = track.file;
     if (file == null) {
-       LogService.logWarning(LogTags.playerViewModel, "onTrackChanged", "File is null");
        return;
     }
 
     final fileType = FileTypeX.fromString(track.track.type);
-    LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Incoming track: ${file.path}, Type: $fileType");
 
-    // ---> ВИПРАВЛЕННЯ ТУТ <---
     if (fileType == FileType.slide) {
-      LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Type is SLIDE. Stopping video playback to prevent flash.");
-      // Обов'язково гальмуємо плеєр
+      LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "SLIDE detected. Pausing video.");
       await scheduleTrackPlayerService.pauseForSlide();
       return; 
     }
-    // ------------------------
 
     if (fileType != FileType.video && fileType != FileType.audio) {
-       LogService.logWarning(LogTags.playerViewModel, "onTrackChanged", "Unsupported file type: $fileType");
        return;
     }
 
     if (scheduleTrackPlayerService.currentTrack?.path == file.path) {
-       LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Track already playing. Skipping.");
        return;
     }
 
