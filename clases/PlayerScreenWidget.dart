@@ -129,7 +129,6 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     final fileType = FileTypeX.fromString(track?.track.type);
     final controller = context.read<PlayerViewModel>().scheduleTrackPlayerService.videoController;
     
-    Log rendering state
     LogService.logInfo("PlayerScreenWidget", "build", "Rendering FileType: $fileType, Path: ${file.path}");
 
     return Stack(
@@ -183,7 +182,6 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
           listenable: service,
           builder: (context, child) {
             final isChanging = service.isChangingTrack;
-            LogService.logInfo("PlayerScreenWidget", "VIDEO_BUILDER", "Rebuilding Video Stack. isChangingTrack: $isChanging");
             
             return Stack(
               fit: StackFit.expand,
