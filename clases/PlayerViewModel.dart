@@ -9,7 +9,7 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
         _getVolumeUseCase = getVolumeUseCase,
         _preloadSlidesService = preloadSlidesService,
         super(const PlayerViewState()) {
-    LogService.logInfoNavigation("Navigation", "PlayerScreen");
+    LogService.logInfoNavigation("Navigation", "PlayerScreen initialized");
     _initialize();
   }
 
@@ -75,19 +75,28 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
 
   Future<void> onTrackChanged(PlayingMediaModel track) async {
     final file = track.file;
-    if (file == null) return;
+    if (file == null) {
+       LogService.logWarning(LogTags.playerViewModel, "onTrackChanged", "File is null");
+       return;
+    }
 
     final fileType = FileTypeX.fromString(track.track.type);
+    LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Incoming track: ${file.path}, Type: $fileType");
 
-    // Якщо прийшов слайд, ми явно зупиняємо плеєр, щоб стерти останній кадр відео
     if (fileType == FileType.slide) {
-      await scheduleTrackPlayerService.stop();
+      LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Type is SLIDE. Ignoring video player update.");
       return; 
     }
 
-    if (fileType != FileType.video && fileType != FileType.audio) return;
+    if (fileType != FileType.video && fileType != FileType.audio) {
+       LogService.logWarning(LogTags.playerViewModel, "onTrackChanged", "Unsupported file type: $fileType");
+       return;
+    }
 
-    if (scheduleTrackPlayerService.currentTrack?.path == file.path) return;
+    if (scheduleTrackPlayerService.currentTrack?.path == file.path) {
+       LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Track already playing. Skipping.");
+       return;
+    }
 
     final seekDuration = Duration(
       milliseconds: ((track.seekPosition ?? 0) * 1000).round(),

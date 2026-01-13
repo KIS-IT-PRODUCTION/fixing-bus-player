@@ -12,7 +12,6 @@ class ScheduleTrackPlayerService with ChangeNotifier {
   File? get currentTrack => _currentTrack;
   VideoController get videoController => _videoController;
 
-  // Геттер для стану завантаження
   bool get isChangingTrack => _isChangingTrack;
 
   File? _currentTrack;
@@ -32,6 +31,7 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     try {
       final media = Media(path);
       await _player.add(media);
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Added to playlist: $path");
     } catch (e, stackTrace) {
       LogService.logError(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Error adding track",  e,  stackTrace);
       _addedTrackPaths.remove(path);
@@ -43,50 +43,65 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     _playbackLoggerService.initPlaybackLoggerService();
   }
 
-  // Новий метод для зупинки
-  Future<void> stop() async {
-    _currentTrack = null;
-    await _player.stop();
-    notifyListeners();
-  }
-
   Future<void> playTrack(File file, Duration? seekPosition, String? tag, String? sk, String? playlistSk, String? filename, String? type, String? title, String? artist, String? campaignSk) async {
-    if (_isChangingTrack) return;
+    LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", ">>> START playTrack: ${file.path}");
+
+    if (_isChangingTrack) {
+      LogService.logWarning(LogTags.scheduleTrackPlayerService, "playTrack", "Skipped: Already changing track");
+      return;
+    }
     
     _isChangingTrack = true;
-    notifyListeners(); 
+    notifyListeners();
+    LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "UI Blocked (Black Screen ON)");
 
     try {
       final playlist = _player.state.playlist;
-      if (playlist.medias.isEmpty) return;
+      if (playlist.medias.isEmpty) {
+        LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Playlist is empty!", null, null);
+        return;
+      }
 
       final index = _findTrackIndex(playlist, file);
-      if (index == -1) return;
+      if (index == -1) {
+        LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Track not found in playlist: ${file.path}", null, null);
+        return;
+      }
 
       _currentTrack = file;
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Track found at index: $index. Pausing...");
       
-      // Логіка перемикання
       await _player.pause();
+      
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Jumping to index $index...");
       await _player.jump(index);
+      
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Waiting for player ready...");
       await _waitForPlayerReady(index);
+      
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Player ready. Sending PLAY command...");
       await _player.play();
       
       _playbackLoggerService.logTrack(tag: tag, sk:sk, playlistSk: playlistSk, filename: filename, title: title, artist: artist, type: type, campaignSk: campaignSk);
 
       if (seekPosition != null && seekPosition > Duration.zero) {
+        LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Seeking to: $seekPosition");
         await _player.seek(seekPosition);
       }
-      
     } catch (e, stackTrace) {
-      LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Error playing track",  e,  stackTrace);
+      LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "CRITICAL ERROR in playTrack",  e,  stackTrace);
     } finally {
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Delaying removal of black screen (100ms)...");
+      await Future.delayed(const Duration(milliseconds: 100));
+      
       _isChangingTrack = false;
       notifyListeners();
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "<<< END playTrack (Black Screen OFF)");
     }
   }
 
   Future <void> setVolume(double volume) {
-    LogService.logInfo(LogTags.scheduleTrackPlayerService, "setVolume", "Track player volume: $volume");
+    LogService.logInfo(LogTags.scheduleTrackPlayerService, "setVolume", "Volume set to: $volume");
     return _player.setVolume(volume);
   }
 
@@ -101,12 +116,17 @@ class ScheduleTrackPlayerService with ChangeNotifier {
   Future<void> _waitForPlayerReady(int expectedIndex) async {
     int attempts = 0;
     while ((_player.state.buffering ||
-        _player.state.duration == Duration.zero ||
         _player.state.playlist.index != expectedIndex) &&
-        attempts < 20) {
-      await Future.delayed(const Duration(milliseconds: 100));
+        attempts < 50) {
+      
+      if (attempts % 5 == 0) {
+         LogService.logInfo(LogTags.scheduleTrackPlayerService, "_waitForPlayerReady", "Attempt $attempts: Buffering=${_player.state.buffering}, Index=${_player.state.playlist.index} vs $expectedIndex");
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 50));
       attempts++;
     }
+    LogService.logInfo(LogTags.scheduleTrackPlayerService, "_waitForPlayerReady", "Finished waiting. Attempts: $attempts");
   }
 
   @override

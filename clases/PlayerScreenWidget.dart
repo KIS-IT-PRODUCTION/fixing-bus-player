@@ -119,20 +119,19 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     final track = state.currentTrack;
     final file = track?.file;
     final viewModel = context.read<PlayerViewModel>();
+    
     if (file == null) {
-      return const Center(
-        child: Text(
-          'No file',
-          style: TextStyle(color: Colors.white),
-        ),
-      );
+      LogService.logWarning("PlayerScreenWidget", "buildTrackState", "File is NULL");
+      return const Center(child: Text('No file', style: TextStyle(color: Colors.white)));
     }
+    
     final image = viewModel.preloadSlidesService.getDecodedImage(file.path);
     final fileType = FileTypeX.fromString(track?.track.type);
-    final controller = context
-        .read<PlayerViewModel>()
-        .scheduleTrackPlayerService
-        .videoController;
+    final controller = context.read<PlayerViewModel>().scheduleTrackPlayerService.videoController;
+    
+    Log rendering state
+    LogService.logInfo("PlayerScreenWidget", "build", "Rendering FileType: $fileType, Path: ${file.path}");
+
     return Stack(
       children: [
         _buildMediaByType(
@@ -176,19 +175,29 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     switch (fileType) {
       case FileType.video:
         if (controller == null) {
+          LogService.logError("PlayerScreenWidget", "_buildMediaByType", "Video controller is NULL", null, null);
           return const SizedBox.shrink(key: ValueKey('video_empty'));
         }
         
         return ListenableBuilder(
           listenable: service,
           builder: (context, child) {
-            // щоб не миготів старий кадр
-            if (service.isChangingTrack) {
-               return Container(color: Colors.black); 
-            }
-            return MediaPlayerWrapper(
-              key: const ValueKey('video_player'),
-              controller: controller,
+            final isChanging = service.isChangingTrack;
+            LogService.logInfo("PlayerScreenWidget", "VIDEO_BUILDER", "Rebuilding Video Stack. isChangingTrack: $isChanging");
+            
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                MediaPlayerWrapper(
+                  key: const ValueKey('video_player'),
+                  controller: controller,
+                ),
+                if (isChanging)
+                   Container(
+                     key: const ValueKey('black_curtain'),
+                     color: Colors.black
+                   ), 
+              ],
             );
           },
         );
