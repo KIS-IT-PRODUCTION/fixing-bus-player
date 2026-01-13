@@ -99,23 +99,30 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
         ],
         child: BlocBuilder<GetRecentTrackBloc, GetRecentTrackState>(
           builder: (context, state) {
-            if (state is RecentTrackLoading) {
-              return _buildLoadingState();
-            }
-
-            if (state is RecentTrackError) {
-              return _buildErrorState();
-            }
-
-            if (state is RecentTrackSuccess) {
-              return _buildTrackState(context, state);
-            }
-
-            return const SizedBox.shrink();
+            return Container(
+              color: Colors.black,
+              child: _buildContent(context, state),
+            );
           },
         ),
       ),
     );
+  }
+
+  Widget _buildContent(BuildContext context, GetRecentTrackState state) {
+    if (state is RecentTrackLoading) {
+      return _buildLoadingState();
+    }
+
+    if (state is RecentTrackError) {
+      return _buildErrorState();
+    }
+
+    if (state is RecentTrackSuccess) {
+      return _buildTrackState(context, state);
+    }
+
+    return const SizedBox.shrink();
   }
 
   Widget _buildLoadingState() => const Center(
@@ -173,7 +180,12 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     LogService.logInfo("PlayerScreenWidget", "build", "Rendering FileType: $fileType, Path: ${file.path}");
 
     return Stack(
+      fit: StackFit.expand,
       children: [
+        const Positioned.fill(
+          child: ColoredBox(color: Colors.black),
+        ),
+
         _buildMediaByType(
           fileType: fileType,
           file: file,
@@ -188,6 +200,13 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
             padding: const EdgeInsets.symmetric(
               vertical: 16,
               horizontal: 20,
+            ),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.transparent, Colors.black54],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -212,61 +231,55 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
   }) {
     final service = context.read<PlayerViewModel>().scheduleTrackPlayerService;
 
-    switch (fileType) {
-      case FileType.video:
-        if (controller == null) {
-          LogService.logError("PlayerScreenWidget", "_buildMediaByType", "Video controller is NULL", null, null);
-          return const SizedBox.shrink(key: ValueKey('video_empty'));
-        }
-        
-        return ListenableBuilder(
-          listenable: service,
-          builder: (context, child) {
-            final isChanging = service.isChangingTrack;
-            
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                MediaPlayerWrapper(
-                  key: const ValueKey('video_player'),
-                  controller: controller,
-                ),
-                if (isChanging)
-                   Container(
-                     key: const ValueKey('black_curtain'),
-                     color: Colors.black
-                   ), 
-              ],
-            );
-          },
-        );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (fileType == FileType.video)
+          if (controller == null)
+             const SizedBox.shrink(key: ValueKey('video_empty'))
+          else
+            ListenableBuilder(
+              listenable: service,
+              builder: (context, child) {
+                final isChanging = service.isChangingTrack;
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    MediaPlayerWrapper(
+                      key: const ValueKey('video_player'),
+                      controller: controller,
+                    ),
+                    if (isChanging)
+                      Container(
+                        key: const ValueKey('black_curtain'),
+                        color: Colors.black,
+                      ),
+                  ],
+                );
+              },
+            ),
 
-      case FileType.slide:
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: Colors.black,
-          child: (slideImage != null && file != null)
-              ? RawImage(
-                  key: const ValueKey('video_surface'),
-                  image: slideImage,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  height: double.infinity,
-                )
-              : Image.asset(
-                  'assets/no_image.jpg',
-                  key: const ValueKey('slide_asset'),
-                  fit: BoxFit.contain,
-                ),
-        );
-
-      case FileType.audio:
-        return _AudioPlaceholder(controller: controller);
-
-      default:
-        return const SizedBox.shrink(key: ValueKey('empty'));
-    }
+        if (fileType == FileType.slide)
+          Container(
+            key: ValueKey('slide_container_${file?.path}'),
+            color: Colors.black,
+            width: double.infinity,
+            height: double.infinity,
+            child: (slideImage != null && file != null)
+                ? RawImage(
+                    image: slideImage,
+                    fit: BoxFit.contain,
+                  )
+                : Image.asset(
+                    'assets/no_image.jpg',
+                    fit: BoxFit.contain,
+                  ),
+          ),
+          
+        if (fileType == FileType.audio)
+           _AudioPlaceholder(controller: controller),
+      ],
+    );
   }
 
   Widget _buildInfoText(String text) => Text(
