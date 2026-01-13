@@ -182,6 +182,7 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
           listenable: service,
           builder: (context, child) {
             final isChanging = service.isChangingTrack;
+            // LogService.logInfo("PlayerScreenWidget", "VIDEO_BUILDER", "Rebuilding Video Stack. isChangingTrack: $isChanging");
             
             return Stack(
               fit: StackFit.expand,

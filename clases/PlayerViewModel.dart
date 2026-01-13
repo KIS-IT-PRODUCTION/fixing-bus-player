@@ -83,15 +83,22 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
     final fileType = FileTypeX.fromString(track.track.type);
     LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Incoming track: ${file.path}, Type: $fileType");
 
+    // ---> ВИПРАВЛЕННЯ ТУТ <---
     if (fileType == FileType.slide) {
+      LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Type is SLIDE. Stopping video playback to prevent flash.");
+      // Обов'язково гальмуємо плеєр
+      await scheduleTrackPlayerService.pauseForSlide();
       return; 
     }
+    // ------------------------
 
     if (fileType != FileType.video && fileType != FileType.audio) {
+       LogService.logWarning(LogTags.playerViewModel, "onTrackChanged", "Unsupported file type: $fileType");
        return;
     }
 
     if (scheduleTrackPlayerService.currentTrack?.path == file.path) {
+       LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "Track already playing. Skipping.");
        return;
     }
 

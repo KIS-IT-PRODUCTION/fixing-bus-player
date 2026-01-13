@@ -43,6 +43,18 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     _playbackLoggerService.initPlaybackLoggerService();
   }
 
+  // ---> НОВИЙ МЕТОД ДЛЯ СЛАЙДІВ <---
+  Future<void> pauseForSlide() async {
+    LogService.logInfo(LogTags.scheduleTrackPlayerService, "pauseForSlide", ">>> FREEZING PLAYER (Slide Active)");
+    try {
+      // Зупиняємо відео, щоб воно не перейшло на наступний трек під слайдом
+      await _player.pause();
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "pauseForSlide", "Player paused successfully.");
+    } catch (e, stackTrace) {
+      LogService.logError(LogTags.scheduleTrackPlayerService, "pauseForSlide", "Error pausing player for slide", e, stackTrace);
+    }
+  }
+
   Future<void> playTrack(File file, Duration? seekPosition, String? tag, String? sk, String? playlistSk, String? filename, String? type, String? title, String? artist, String? campaignSk) async {
     LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", ">>> START playTrack: ${file.path}");
 
@@ -53,7 +65,8 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     
     _isChangingTrack = true;
     notifyListeners();
-    
+    LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "UI Blocked (Black Screen ON)");
+
     try {
       final playlist = _player.state.playlist;
       if (playlist.medias.isEmpty) {
@@ -68,24 +81,34 @@ class ScheduleTrackPlayerService with ChangeNotifier {
       }
 
       _currentTrack = file;
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Track found at index: $index. Pausing...");
       
       await _player.pause();
+      
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Jumping to index $index...");
       await _player.jump(index);
+      
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Waiting for player ready...");
       await _waitForPlayerReady(index);
+      
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Player ready. Sending PLAY command...");
       await _player.play();
       
       _playbackLoggerService.logTrack(tag: tag, sk:sk, playlistSk: playlistSk, filename: filename, title: title, artist: artist, type: type, campaignSk: campaignSk);
 
       if (seekPosition != null && seekPosition > Duration.zero) {
+        LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Seeking to: $seekPosition");
         await _player.seek(seekPosition);
       }
     } catch (e, stackTrace) {
       LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "CRITICAL ERROR in playTrack",  e,  stackTrace);
     } finally {
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Delaying removal of black screen (100ms)...");
       await Future.delayed(const Duration(milliseconds: 100));
+      
       _isChangingTrack = false;
       notifyListeners();
-      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "<<< END playTrack");
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "<<< END playTrack (Black Screen OFF)");
     }
   }
 
@@ -107,9 +130,15 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     while ((_player.state.buffering ||
         _player.state.playlist.index != expectedIndex) &&
         attempts < 50) {
+      
+      if (attempts % 5 == 0) {
+         LogService.logInfo(LogTags.scheduleTrackPlayerService, "_waitForPlayerReady", "Attempt $attempts: Buffering=${_player.state.buffering}, Index=${_player.state.playlist.index} vs $expectedIndex");
+      }
+      
       await Future.delayed(const Duration(milliseconds: 50));
       attempts++;
     }
+    LogService.logInfo(LogTags.scheduleTrackPlayerService, "_waitForPlayerReady", "Finished waiting. Attempts: $attempts");
   }
 
   @override
