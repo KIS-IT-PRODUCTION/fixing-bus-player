@@ -103,8 +103,11 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     } catch (e, stackTrace) {
       LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "CRITICAL ERROR in playTrack",  e,  stackTrace);
     } finally {
-      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Delaying removal of black screen (100ms)...");
-      await Future.delayed(const Duration(milliseconds: 100));
+      // === ЗМІНА ТУТ ===
+      // Збільшуємо час очікування до 400мс, щоб гарантувати, 
+      // що попередній кадр з буфера відеокарти точно замінився новим.
+      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Delaying removal of black screen (400ms)...");
+      await Future.delayed(const Duration(milliseconds: 400));
       
       _isChangingTrack = false;
       notifyListeners();
