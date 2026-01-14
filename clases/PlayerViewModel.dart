@@ -61,7 +61,7 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
 
   void _onPlayerManagerUpdate() {
     if (!isClosed) {
-       emit(state.copyWith(updateTrigger: DateTime.now().millisecondsSinceEpoch));
+      emit(state.copyWith(updateTrigger: DateTime.now().millisecondsSinceEpoch));
     }
   }
 
@@ -108,8 +108,10 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
       return;
     }
 
-    if (scheduleTrackPlayerService.currentTrack?.path == file.path && !scheduleTrackPlayerService.isChangingTrack) {
-      return;
+
+    if (scheduleTrackPlayerService.currentTrack?.path == file.path) {
+
+       return;
     }
 
     final seekDuration = Duration(
@@ -133,7 +135,6 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
   @override
   Future<void> close() {
     _scheduleTrackPlayerService.removeListener(_onPlayerManagerUpdate);
-    
     _volumeManager.dispose();
     _getTrackBloc.close();
     return super.close();
