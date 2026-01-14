@@ -17,7 +17,7 @@ class ScheduleTrackPlayerService with ChangeNotifier {
 
   final Player _player = Player(
     configuration: const PlayerConfiguration(
-      bufferSize: 32 * 1024 * 1024,
+      bufferSize: 32 * 1024 * 1024, 
     ),
   );
   late final VideoController _videoController;
@@ -37,7 +37,10 @@ class ScheduleTrackPlayerService with ChangeNotifier {
       _currentTrack = file;
       final media = Media(file.path);
 
-      await _player.open(media, play: true);
+      await _player.open(media, play: false);
+      
+      await _player.play();
+      
     } catch (e, stackTrace) {
       LogService.logError(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Error opening track", e, stackTrace);
     }
