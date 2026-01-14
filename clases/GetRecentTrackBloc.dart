@@ -31,35 +31,13 @@ class GetRecentTrackBloc extends Bloc<GetRecentTrackEvent, GetRecentTrackState> 
     emit(RecentTrackLoading());
 
     getCurrentlyPlayingTrackUseCase.setTrackChangedCallback((status) {
-      add(_InternalTrackChangedEvent(status));
-    });
-    try {
-      final status = await getCurrentlyPlayingTrackUseCase.startPeriodicWork();
-
-      if (status is TrackPlaying) {
-        if (FileTypeX.fromString(status.track?.track.type) == FileType.video ||
-            FileTypeX.fromString(status.track?.track.type) == FileType.audio) {
-          final track = status.track;
-          _currentTrack = track;
-
-          final file = track?.file;
-          if (file != null) {
-            await _playerManager.addTrackToPlaylist(file);
-          }
-        }
-
-        final fileType = FileTypeX.fromString(status.track?.track.type);
-        if (fileType == FileType.slide) {
-          await _preloadSlidesService.preCacheSlide(status.track?.file, status.track?.track.filename);
-        }
-        emit(RecentTrackSuccess(currentTrack: _currentTrack));
-      } else if (status is TrackOutOfSchedule) {
-        emit(RecentTrackOutOfSchedule());
-      } else if (status is TrackNotFound) {
-        emit(RecentTrackError('File not found'));
-      } else if (status is TrackError) {
-        emit(RecentTrackError('Failed to load track: ${status.error}'));
+      if (!isClosed) {
+        add(_InternalTrackChangedEvent(status));
       }
+    });
+
+    try {
+      await getCurrentlyPlayingTrackUseCase.startPeriodicWork();
     } catch (e, stackTrace) {
       LogService.logError(LogTags.getRecentTrackBloc, "_onLoadLocalTrack", "Unexpected error", e, stackTrace);
       emit(RecentTrackError('Unexpected error: $e'));
@@ -73,23 +51,36 @@ class GetRecentTrackBloc extends Bloc<GetRecentTrackEvent, GetRecentTrackState> 
     final status = event.status;
 
     if (status is TrackPlaying) {
-      final track = status.track;
-      _currentTrack = track;
-      final file = track?.file;
+      final newTrack = status.track;
+      final newFile = newTrack?.file;
+      
 
-      final fileType = FileTypeX.fromString(track?.track.type);
+      final isNewTrack = _currentTrack?.file?.path != newFile?.path;
+      
+      _currentTrack = newTrack;
+
+      final fileType = FileTypeX.fromString(newTrack?.track.type);
+      
       if (fileType == FileType.slide) {
-        await _preloadSlidesService.preCacheSlide(track?.file, track?.track.filename);
+        await _preloadSlidesService.preCacheSlide(newTrack?.file, newTrack?.track.filename);
       } else if (fileType == FileType.video || fileType == FileType.audio) {
-        if (file != null) {
-          await _playerManager.addTrackToPlaylist(file);
+        if (newFile != null) {
+          if (isNewTrack || _playerManager.currentTrack == null) {
+
+             await _playerManager.addTrackToPlaylist(newFile);
+          }
         }
       }
+      
       emit(RecentTrackSuccess(currentTrack: _currentTrack));
       
     } else if (status is TrackOutOfSchedule) {
       _currentTrack = null;
       emit(RecentTrackOutOfSchedule());
+    } else if (status is TrackNotFound) {
+      emit(RecentTrackError('File not found'));
+    } else if (status is TrackError) {
+      emit(RecentTrackError('Failed to load track: ${status.error}'));
     }
   }
 }
