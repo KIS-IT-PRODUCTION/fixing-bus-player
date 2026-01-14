@@ -1,3 +1,13 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:soloveiko_media_player/domain/service/log_service/log_service.dart';
+import 'package:soloveiko_media_player/domain/service/log_service/log_tags.dart';
+import 'package:soloveiko_media_player/domain/service/playback_logger_service/playback_logger_service.dart';
+
 class ScheduleTrackPlayerService with ChangeNotifier {
   ScheduleTrackPlayerService() {
     _videoController = VideoController(_player);
@@ -5,7 +15,11 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     _initializePlaybackLoggerService();
   }
 
-  final Player _player = Player();
+  final Player _player = Player(
+    configuration: const PlayerConfiguration(
+      bufferSize: 32 * 1024 * 1024,
+    ),
+  );
   late final VideoController _videoController;
   late final PlaybackLoggerService _playbackLoggerService;
 
@@ -17,23 +31,14 @@ class ScheduleTrackPlayerService with ChangeNotifier {
   File? _currentTrack;
   bool _isChangingTrack = false;
   StreamSubscription? _completedSubscription;
-  final List<String> _addedTrackPaths = [];
 
   Future<void> addTrackToPlaylist(File file) async {
-    final path = file.path;
-
-    if (_addedTrackPaths.contains(path)) {
-      return;
-    }
-    _addedTrackPaths.add(path);
-
     try {
-      final media = Media(path);
-      await _player.add(media);
-      LogService.logInfo(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Added to playlist: $path");
+      _currentTrack = file;
+      final media = Media(file.path);
+      await _player.open(media, play: false);
     } catch (e, stackTrace) {
-      LogService.logError(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Error adding track", e, stackTrace);
-      _addedTrackPaths.remove(path);
+      LogService.logError(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Error opening track", e, stackTrace);
     }
   }
 
@@ -43,10 +48,14 @@ class ScheduleTrackPlayerService with ChangeNotifier {
   }
 
   Future<void> pauseForSlide() async {
+    await stopAndClear();
+  }
+
+  Future<void> stopAndClear() async {
     try {
-      await _player.pause();
+      await _player.stop();
     } catch (e, stackTrace) {
-      LogService.logError(LogTags.scheduleTrackPlayerService, "pauseForSlide", "Error pausing player for slide", e, stackTrace);
+      LogService.logError(LogTags.scheduleTrackPlayerService, "stopAndClear", "Error stopping player", e, stackTrace);
     }
   }
 
@@ -59,27 +68,6 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     notifyListeners();
 
     try {
-      await _player.stop();
-
-      final playlist = _player.state.playlist;
-      if (playlist.medias.isEmpty) {
-        _isChangingTrack = false;
-        notifyListeners();
-        return;
-      }
-
-      final index = _findTrackIndex(playlist, file);
-      if (index == -1) {
-        _isChangingTrack = false;
-        notifyListeners();
-        return;
-      }
-
-      _currentTrack = file;
-
-      await _player.jump(index);
-      await _waitForPlayerReady(index);
-
       if (seekPosition != null && seekPosition > Duration.zero) {
         await _player.seek(seekPosition);
       }
@@ -91,7 +79,6 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     } catch (e, stackTrace) {
       LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Error in playTrack", e, stackTrace);
     } finally {
-      await Future.delayed(const Duration(milliseconds: 350));
       _isChangingTrack = false;
       notifyListeners();
     }
@@ -99,25 +86,6 @@ class ScheduleTrackPlayerService with ChangeNotifier {
 
   Future<void> setVolume(double volume) {
     return _player.setVolume(volume);
-  }
-
-  int _findTrackIndex(Playlist playlist, File file) {
-    return playlist.medias.indexWhere((media) {
-      final mediaName = media.uri.split('/').last;
-      final fileName = file.path.split('/').last;
-      return mediaName == fileName;
-    });
-  }
-
-  Future<void> _waitForPlayerReady(int expectedIndex) async {
-    int attempts = 0;
-    while (attempts < 20) {
-      if (_player.state.playlist.index == expectedIndex) {
-        break;
-      }
-      await Future.delayed(const Duration(milliseconds: 50));
-      attempts++;
-    }
   }
 
   @override
