@@ -12,22 +12,22 @@ import 'get_recent_track_state.dart';
 class GetRecentTrackBloc extends Bloc<GetRecentTrackEvent, GetRecentTrackState> {
   final GetCurrentTrackUseCase getCurrentlyPlayingTrackUseCase;
   final ScheduleTrackPlayerService _playerManager;
-  PlayingMediaModel? _currentTrack;
   final PreloadSlidesService _preloadSlidesService;
+  PlayingMediaModel? _currentTrack;
 
   GetRecentTrackBloc(
-      this.getCurrentlyPlayingTrackUseCase,
-      this._playerManager,
-      this._preloadSlidesService,
-      ) : super(RecentTrackInitial()) {
+    this.getCurrentlyPlayingTrackUseCase,
+    this._playerManager,
+    this._preloadSlidesService,
+  ) : super(RecentTrackInitial()) {
     on<LoadLocalTrackEvent>(_onLoadLocalTrack);
     on<_InternalTrackChangedEvent>(_onInternalTrackChanged);
   }
 
   Future<void> _onLoadLocalTrack(
-      LoadLocalTrackEvent event,
-      Emitter<GetRecentTrackState> emit,
-      ) async {
+    LoadLocalTrackEvent event,
+    Emitter<GetRecentTrackState> emit,
+  ) async {
     emit(RecentTrackLoading());
     getCurrentlyPlayingTrackUseCase.setTrackChangedCallback((status) {
       if (!isClosed) {
@@ -43,9 +43,9 @@ class GetRecentTrackBloc extends Bloc<GetRecentTrackEvent, GetRecentTrackState> 
   }
 
   void _onInternalTrackChanged(
-      _InternalTrackChangedEvent event,
-      Emitter<GetRecentTrackState> emit,
-      ) async {
+    _InternalTrackChangedEvent event,
+    Emitter<GetRecentTrackState> emit,
+  ) async {
     final status = event.status;
 
     if (status is TrackPlaying) {
@@ -58,8 +58,6 @@ class GetRecentTrackBloc extends Bloc<GetRecentTrackEvent, GetRecentTrackState> 
       final fileType = FileTypeX.fromString(newTrack?.track.type);
       
       if (fileType == FileType.slide) {
-        await _playerManager.stopAndClear(); 
-        
         await _preloadSlidesService.preCacheSlide(newTrack?.file, newTrack?.track.filename);
       } else if (fileType == FileType.video || fileType == FileType.audio) {
         if (newFile != null) {
