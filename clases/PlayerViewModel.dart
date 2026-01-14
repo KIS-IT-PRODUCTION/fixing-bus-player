@@ -1,3 +1,21 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
+import 'package:soloveiko_media_player/data/local/model/playing_track_model.dart';
+import 'package:soloveiko_media_player/data/local/model/track_model.dart';
+import 'package:soloveiko_media_player/data/remote/model/comand_type.dart';
+import 'package:soloveiko_media_player/domain/service/log_service/log_service.dart';
+import 'package:soloveiko_media_player/domain/service/log_service/log_tags.dart';
+import 'package:soloveiko_media_player/domain/service/player_service/system_sounds_player_service.dart';
+import 'package:soloveiko_media_player/domain/service/player_service/video_player_manager_service.dart';
+import 'package:soloveiko_media_player/domain/service/player_service/volume_manager.dart';
+import 'package:soloveiko_media_player/domain/service/preload_slides_service/preload_slides_service.dart';
+import 'package:soloveiko_media_player/domain/usecase/get_current_track_use_case.dart';
+import 'package:soloveiko_media_player/domain/usecase/get_system_sounds_use_case.dart';
+import 'package:soloveiko_media_player/domain/usecase/get_volume_use_case.dart';
+import 'package:soloveiko_media_player/presentation/bloc/getrecenttrackbloc/get_recent_track_bloc.dart';
+import 'package:soloveiko_media_player/presentation/bloc/getrecenttrackbloc/get_recent_track_event.dart';
+import 'player_view_state.dart';
+
 class PlayerViewModel extends Cubit<PlayerViewState> {
   PlayerViewModel({
     required GetCurrentTrackUseCase getCurrentTrackUseCase,
@@ -28,8 +46,8 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
   PreloadSlidesService get preloadSlidesService => _preloadSlidesService;
 
   void _initialize() {
-    _scheduleTrackPlayerService = ScheduleTrackPlayerService();
-    _systemSoundsPlayerManager = SystemSoundsPlayerService();
+    _scheduleTrackPlayerService = GetIt.I<ScheduleTrackPlayerService>();
+    _systemSoundsPlayerManager = GetIt.I<SystemSoundsPlayerService>();
 
     _getTrackBloc = GetRecentTrackBloc(
       _getCurrentTrackUseCase,
@@ -42,7 +60,9 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
   }
 
   void _onPlayerManagerUpdate() {
-    emit(state.copyWith(updateTrigger: DateTime.now().millisecondsSinceEpoch));
+    if (!isClosed) {
+       emit(state.copyWith(updateTrigger: DateTime.now().millisecondsSinceEpoch));
+    }
   }
 
   Future<void> _initVolumeManager() async {
@@ -74,22 +94,22 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
   Future<void> onTrackChanged(PlayingMediaModel track) async {
     final file = track.file;
     if (file == null) {
-       return;
+      return;
     }
 
     final fileType = FileTypeX.fromString(track.track.type);
 
     if (fileType == FileType.slide) {
       await scheduleTrackPlayerService.pauseForSlide();
-      return; 
+      return;
     }
 
     if (fileType != FileType.video && fileType != FileType.audio) {
-       return;
+      return;
     }
 
-    if (scheduleTrackPlayerService.currentTrack?.path == file.path) {
-       return;
+    if (scheduleTrackPlayerService.currentTrack?.path == file.path && !scheduleTrackPlayerService.isChangingTrack) {
+      return;
     }
 
     final seekDuration = Duration(
@@ -113,8 +133,7 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
   @override
   Future<void> close() {
     _scheduleTrackPlayerService.removeListener(_onPlayerManagerUpdate);
-    _scheduleTrackPlayerService.dispose();
-    _systemSoundsPlayerManager.dispose();
+    
     _volumeManager.dispose();
     _getTrackBloc.close();
     return super.close();
