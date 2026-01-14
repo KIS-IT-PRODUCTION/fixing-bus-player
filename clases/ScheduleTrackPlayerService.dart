@@ -44,47 +44,41 @@ class ScheduleTrackPlayerService with ChangeNotifier {
   }
 
   Future<void> pauseForSlide() async {
-    LogService.logInfo(LogTags.scheduleTrackPlayerService, "pauseForSlide", ">>> FREEZING PLAYER (Slide Active)");
     try {
       await _player.pause();
-      LogService.logInfo(LogTags.scheduleTrackPlayerService, "pauseForSlide", "Player paused successfully.");
     } catch (e, stackTrace) {
       LogService.logError(LogTags.scheduleTrackPlayerService, "pauseForSlide", "Error pausing player for slide", e, stackTrace);
     }
   }
 
   Future<void> playTrack(File file, Duration? seekPosition, String? tag, String? sk, String? playlistSk, String? filename, String? type, String? title, String? artist, String? campaignSk) async {
-    LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", ">>> START playTrack: ${file.path}");
-
     if (_isChangingTrack) {
-      LogService.logWarning(LogTags.scheduleTrackPlayerService, "playTrack", "Skipped: Already changing track");
       return;
     }
     
     _isChangingTrack = true;
     notifyListeners();
-    
+
     try {
       final playlist = _player.state.playlist;
       if (playlist.medias.isEmpty) {
-        LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Playlist is empty!", null, null);
+        _isChangingTrack = false;
+        notifyListeners();
         return;
       }
 
       final index = _findTrackIndex(playlist, file);
       if (index == -1) {
-        LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Track not found in playlist: ${file.path}", null, null);
+        _isChangingTrack = false;
+        notifyListeners();
         return;
       }
 
       _currentTrack = file;
       
       await _player.pause();
-      
       await _player.jump(index);
-      
       await _waitForPlayerReady(index);
-      
       await _player.play();
       
       _playbackLoggerService.logTrack(tag: tag, sk:sk, playlistSk: playlistSk, filename: filename, title: title, artist: artist, type: type, campaignSk: campaignSk);
@@ -92,20 +86,12 @@ class ScheduleTrackPlayerService with ChangeNotifier {
       if (seekPosition != null && seekPosition > Duration.zero) {
         await _player.seek(seekPosition);
       }
-      
-
-      await _waitForVideoDimensions();
-
     } catch (e, stackTrace) {
-      LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "CRITICAL ERROR in playTrack",  e,  stackTrace);
+      LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Error in playTrack",  e,  stackTrace);
     } finally {
-
-      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "Safety buffer (150ms)...");
-      await Future.delayed(const Duration(milliseconds: 150));
-      
+      await Future.delayed(const Duration(milliseconds: 250));
       _isChangingTrack = false;
-      notifyListeners(); 
-      LogService.logInfo(LogTags.scheduleTrackPlayerService, "playTrack", "<<< END playTrack (Visible)");
+      notifyListeners();
     }
   }
 
@@ -123,20 +109,9 @@ class ScheduleTrackPlayerService with ChangeNotifier {
 
   Future<void> _waitForPlayerReady(int expectedIndex) async {
     int attempts = 0;
-    while ((_player.state.buffering || _player.state.playlist.index != expectedIndex) && attempts < 40) {
+    while ((_player.state.buffering || _player.state.playlist.index != expectedIndex) && attempts < 20) {
       await Future.delayed(const Duration(milliseconds: 50));
       attempts++;
-    }
-  }
-
-  Future<void> _waitForVideoDimensions() async {
-    int attempts = 0;
-    while ((_player.state.width == null || _player.state.width == 0) && attempts < 20) {
-      await Future.delayed(const Duration(milliseconds: 50));
-      attempts++;
-    }
-    if (attempts >= 20) {
-      LogService.logWarning(LogTags.scheduleTrackPlayerService, "_waitForVideoDimensions", "Video dimensions timed out, removing curtain anyway.");
     }
   }
 

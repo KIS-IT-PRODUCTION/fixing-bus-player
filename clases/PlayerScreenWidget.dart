@@ -80,6 +80,7 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
               if (state is RecentTrackOutOfSchedule) {
                 widget.onOutOfSchedule?.call();
               }
+
               if (state is RecentTrackSuccess && state.currentTrack != null) {
                 context.read<PlayerViewModel>().onTrackChanged(state.currentTrack!);
               }
@@ -88,9 +89,9 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
         ],
         child: BlocBuilder<GetRecentTrackBloc, GetRecentTrackState>(
           builder: (context, state) {
-            return Container(
-              color: Colors.black,
-              child: _buildContent(context, state),
+            return Scaffold(
+              backgroundColor: Colors.black,
+              body: _buildContent(context, state),
             );
           },
         ),
@@ -102,57 +103,137 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
     if (state is RecentTrackLoading) {
       return _buildLoadingState();
     }
+
     if (state is RecentTrackError) {
       return _buildErrorState();
     }
+
     if (state is RecentTrackSuccess) {
       return _buildTrackState(context, state);
     }
+
     return const SizedBox.shrink();
   }
 
   Widget _buildLoadingState() => const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        ),
+        SizedBox(height: 16),
+        Text(
+          "Wait a moment...",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            decoration: TextDecoration.none,
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildErrorState() => const Center(
-        child: Icon(Icons.error_outline, color: Colors.red, size: 64),
-      );
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.error_outline, color: Colors.red, size: 64),
+        SizedBox(height: 16),
+        Text(
+          'Error loading track',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            decoration: TextDecoration.none,
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildTrackState(BuildContext context, RecentTrackSuccess state) {
     final track = state.currentTrack;
     final file = track?.file;
-    final viewModel = context.read<PlayerViewModel>();
     
     if (file == null) {
       return const Center(child: Text('No file', style: TextStyle(color: Colors.white)));
     }
     
-    final image = viewModel.preloadSlidesService.getDecodedImage(file.path);
+    final viewModel = context.read<PlayerViewModel>();
+    final service = viewModel.scheduleTrackPlayerService;
     final fileType = FileTypeX.fromString(track?.track.type);
     
-    final rawController = context.read<PlayerViewModel>().scheduleTrackPlayerService.videoController;
-    final activeController = (fileType == FileType.video) ? rawController : null;
-    
+    final ui.Image? slideImage = (fileType == FileType.slide) 
+        ? viewModel.preloadSlidesService.getDecodedImage(file.path)
+        : null;
+
+    final videoController = service.videoController;
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        const Positioned.fill(
-          child: ColoredBox(color: Colors.black),
+        Positioned.fill(
+          child: MediaPlayerWrapper(
+             key: const ValueKey('video_player_layer'),
+             controller: videoController,
+          ),
         ),
 
-        _buildMediaByType(
-          fileType: fileType,
-          file: file,
-          controller: activeController,
-          slideImage: image,
+        if (fileType == FileType.slide)
+          Positioned.fill(
+            key: ValueKey('slide_layer_${file.path}'),
+            child: Container(
+              color: Colors.black,
+              child: (slideImage != null)
+                  ? RawImage(
+                      image: slideImage,
+                      fit: BoxFit.contain,
+                    )
+                  : Image.asset(
+                      'assets/no_image.jpg',
+                      fit: BoxFit.contain,
+                    ),
+            ),
+          ),
+
+        if (fileType == FileType.audio)
+          const Positioned.fill(
+             child: ColoredBox(
+               color: Colors.black,
+               child: Center(
+                 child: Icon(
+                   Icons.music_note,
+                   color: Colors.white,
+                   size: 80,
+                 ),
+               ),
+             ),
+          ),
+
+        ListenableBuilder(
+          listenable: service,
+          builder: (context, _) {
+            return Visibility(
+              visible: service.isChangingTrack,
+              child: Container(
+                color: Colors.black,
+                width: double.infinity,
+                height: double.infinity,
+              ),
+            );
+          },
         ),
 
         Align(
           alignment: Alignment.bottomCenter,
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(
+              vertical: 16,
+              horizontal: 20,
+            ),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [Colors.transparent, Colors.black54],
@@ -164,8 +245,42 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildInfoText('Filename: ${file.path.split('/').last}'),
-                _buildInfoText('Title: ${track?.track.title ?? '-'}'),
+                Text(
+                  'Filename: ${file.path.split('/').last}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.none,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'Artist: ${track?.track.artist ?? '-'}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.none,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'Track: ${track?.track.source ?? '-'}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.none,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -173,95 +288,21 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
       ],
     );
   }
-
-  Widget _buildMediaByType({
-    required FileType fileType,
-    File? file,
-    VideoController? controller,
-    ui.Image? slideImage,
-  }) {
-    final service = context.read<PlayerViewModel>().scheduleTrackPlayerService;
-
-    if (fileType == FileType.video && controller != null) {
-      return ListenableBuilder(
-        listenable: service,
-        builder: (context, child) {
-          final isChanging = service.isChangingTrack;
-          
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              MediaPlayerWrapper(
-                key: const ValueKey('video_player'),
-                controller: controller,
-              ),
-              if (isChanging)
-                Container(
-                  key: const ValueKey('black_curtain'),
-                  color: Colors.black, 
-                ),
-            ],
-          );
-        },
-      );
-    }
-
-    if (fileType == FileType.slide) {
-      return Container(
-        key: ValueKey('slide_container_${file?.path}'),
-        color: Colors.black,
-        width: double.infinity,
-        height: double.infinity,
-        child: (slideImage != null)
-            ? RawImage(
-                image: slideImage,
-                fit: BoxFit.contain,
-              )
-            : Image.asset('assets/no_image.jpg', fit: BoxFit.contain),
-      );
-    }
-          
-    if (fileType == FileType.audio) {
-      return _AudioPlaceholder(controller: controller);
-    }
-
-    return const SizedBox.shrink();
-  }
-
-  Widget _buildInfoText(String text) => Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          decoration: TextDecoration.none,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      );
 }
 
-class _AudioPlaceholder extends StatelessWidget {
-  final VideoController? controller;
-  const _AudioPlaceholder({this.controller});
+class MediaPlayerWrapper extends StatelessWidget {
+  final VideoController controller;
+
+  const MediaPlayerWrapper({
+    super.key,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        const Center(
-          child: Icon(Icons.music_note, size: 120, color: Colors.white),
-        ),
-        if (controller != null)
-          Positioned(
-            bottom: 20,
-            left: 0,
-            right: 0,
-            child: Video(controller: controller),
-          ),
-      ],
+    return Video(
+      controller: controller,
+      fit: BoxFit.contain,
     );
   }
 }

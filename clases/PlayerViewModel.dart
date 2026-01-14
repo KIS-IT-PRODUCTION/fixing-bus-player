@@ -80,7 +80,6 @@ class PlayerViewModel extends Cubit<PlayerViewState> {
     final fileType = FileTypeX.fromString(track.track.type);
 
     if (fileType == FileType.slide) {
-      LogService.logInfo(LogTags.playerViewModel, "onTrackChanged", "SLIDE detected. Pausing video.");
       await scheduleTrackPlayerService.pauseForSlide();
       return; 
     }
