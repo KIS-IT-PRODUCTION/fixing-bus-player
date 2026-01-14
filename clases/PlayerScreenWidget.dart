@@ -43,6 +43,8 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
   late final GetRecentTrackBloc _getTrackBloc;
   late final GetSystemSoundsBloc _getSystemSoundsBloc;
   late final StreamSubscription _systemSoundsSubscription;
+  
+  ui.Image? _cachedSlideImage;
 
   @override
   void initState() {
@@ -156,18 +158,24 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
   Widget _buildTrackState(BuildContext context, RecentTrackSuccess state) {
     final track = state.currentTrack;
     final file = track?.file;
-    
+
     if (file == null) {
       return const Center(child: Text('No file', style: TextStyle(color: Colors.white)));
     }
-    
+
     final viewModel = context.read<PlayerViewModel>();
     final service = viewModel.scheduleTrackPlayerService;
     final fileType = FileTypeX.fromString(track?.track.type);
-    
-    final ui.Image? slideImage = (fileType == FileType.slide) 
+
+    final ui.Image? currentSlideImage = (fileType == FileType.slide)
         ? viewModel.preloadSlidesService.getDecodedImage(file.path)
         : null;
+
+    if (fileType == FileType.slide && currentSlideImage != null) {
+      _cachedSlideImage = currentSlideImage;
+    } else if (fileType == FileType.video && !service.isChangingTrack) {
+      _cachedSlideImage = null;
+    }
 
     final videoController = service.videoController;
 
@@ -176,8 +184,8 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
       children: [
         Positioned.fill(
           child: MediaPlayerWrapper(
-             key: const ValueKey('video_player_layer'),
-             controller: videoController,
+            key: const ValueKey('video_player_layer'),
+            controller: videoController,
           ),
         ),
 
@@ -186,9 +194,9 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
             key: ValueKey('slide_layer_${file.path}'),
             child: Container(
               color: Colors.black,
-              child: (slideImage != null)
+              child: (currentSlideImage != null)
                   ? RawImage(
-                      image: slideImage,
+                      image: currentSlideImage,
                       fit: BoxFit.contain,
                     )
                   : Image.asset(
@@ -200,28 +208,41 @@ class _PlayerScreenWidgetState extends State<PlayerScreenWidget> {
 
         if (fileType == FileType.audio)
           const Positioned.fill(
-             child: ColoredBox(
-               color: Colors.black,
-               child: Center(
-                 child: Icon(
-                   Icons.music_note,
-                   color: Colors.white,
-                   size: 80,
-                 ),
-               ),
-             ),
+            child: ColoredBox(
+              color: Colors.black,
+              child: Center(
+                child: Icon(
+                  Icons.music_note,
+                  color: Colors.white,
+                  size: 80,
+                ),
+              ),
+            ),
           ),
 
         ListenableBuilder(
           listenable: service,
           builder: (context, _) {
-            return Visibility(
-              visible: service.isChangingTrack,
-              child: Container(
-                color: Colors.black,
+            if (!service.isChangingTrack) {
+               return const SizedBox.shrink();
+            }
+
+            if (_cachedSlideImage != null) {
+              return Container(
                 width: double.infinity,
                 height: double.infinity,
-              ),
+                color: Colors.black,
+                child: RawImage(
+                  image: _cachedSlideImage,
+                  fit: BoxFit.contain,
+                ),
+              );
+            }
+
+            return Container(
+              color: Colors.black,
+              width: double.infinity,
+              height: double.infinity,
             );
           },
         ),

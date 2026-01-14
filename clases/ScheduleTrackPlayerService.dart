@@ -18,7 +18,6 @@ class ScheduleTrackPlayerService with ChangeNotifier {
   bool _isChangingTrack = false;
   StreamSubscription? _completedSubscription;
   final List<String> _addedTrackPaths = [];
-  var index = 0;
 
   Future<void> addTrackToPlaylist(File file) async {
     final path = file.path;
@@ -33,12 +32,12 @@ class ScheduleTrackPlayerService with ChangeNotifier {
       await _player.add(media);
       LogService.logInfo(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Added to playlist: $path");
     } catch (e, stackTrace) {
-      LogService.logError(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Error adding track",  e,  stackTrace);
+      LogService.logError(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Error adding track", e, stackTrace);
       _addedTrackPaths.remove(path);
     }
   }
 
-  _initializePlaybackLoggerService() async{
+  _initializePlaybackLoggerService() async {
     _playbackLoggerService = PlaybackLoggerService();
     _playbackLoggerService.initPlaybackLoggerService();
   }
@@ -55,11 +54,13 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     if (_isChangingTrack) {
       return;
     }
-    
+
     _isChangingTrack = true;
     notifyListeners();
 
     try {
+      await _player.stop();
+
       final playlist = _player.state.playlist;
       if (playlist.medias.isEmpty) {
         _isChangingTrack = false;
@@ -75,27 +76,28 @@ class ScheduleTrackPlayerService with ChangeNotifier {
       }
 
       _currentTrack = file;
-      
-      await _player.pause();
+
       await _player.jump(index);
       await _waitForPlayerReady(index);
-      await _player.play();
-      
-      _playbackLoggerService.logTrack(tag: tag, sk:sk, playlistSk: playlistSk, filename: filename, title: title, artist: artist, type: type, campaignSk: campaignSk);
 
       if (seekPosition != null && seekPosition > Duration.zero) {
         await _player.seek(seekPosition);
       }
+      
+      await _player.play();
+
+      _playbackLoggerService.logTrack(tag: tag, sk: sk, playlistSk: playlistSk, filename: filename, title: title, artist: artist, type: type, campaignSk: campaignSk);
+
     } catch (e, stackTrace) {
-      LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Error in playTrack",  e,  stackTrace);
+      LogService.logError(LogTags.scheduleTrackPlayerService, "playTrack", "Error in playTrack", e, stackTrace);
     } finally {
-      await Future.delayed(const Duration(milliseconds: 250));
+      await Future.delayed(const Duration(milliseconds: 350));
       _isChangingTrack = false;
       notifyListeners();
     }
   }
 
-  Future <void> setVolume(double volume) {
+  Future<void> setVolume(double volume) {
     return _player.setVolume(volume);
   }
 
@@ -109,7 +111,10 @@ class ScheduleTrackPlayerService with ChangeNotifier {
 
   Future<void> _waitForPlayerReady(int expectedIndex) async {
     int attempts = 0;
-    while ((_player.state.buffering || _player.state.playlist.index != expectedIndex) && attempts < 20) {
+    while (attempts < 20) {
+      if (_player.state.playlist.index == expectedIndex) {
+        break;
+      }
       await Future.delayed(const Duration(milliseconds: 50));
       attempts++;
     }
