@@ -36,7 +36,8 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     try {
       _currentTrack = file;
       final media = Media(file.path);
-      await _player.open(media, play: false);
+
+      await _player.open(media, play: true);
     } catch (e, stackTrace) {
       LogService.logError(LogTags.scheduleTrackPlayerService, "addTrackToPlaylist", "Error opening track", e, stackTrace);
     }
@@ -68,11 +69,11 @@ class ScheduleTrackPlayerService with ChangeNotifier {
     notifyListeners();
 
     try {
+      await _player.play();
+
       if (seekPosition != null && seekPosition > Duration.zero) {
         await _player.seek(seekPosition);
       }
-      
-      await _player.play();
 
       _playbackLoggerService.logTrack(tag: tag, sk: sk, playlistSk: playlistSk, filename: filename, title: title, artist: artist, type: type, campaignSk: campaignSk);
 
